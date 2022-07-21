@@ -60,6 +60,7 @@ func TestStrategy(t *testing.T) {
 
 	remoteAdmin, remotePublic, hydraIntegrationTSURL := newHydra(t, &subject, &website, &scope)
 	returnTS := newReturnTs(t, reg)
+	conf.MustSet(config.ViperKeyURLsAllowedReturnToDomains, []string{returnTS.URL})
 	uiTS := newUI(t, reg)
 	errTS := testhelpers.NewErrorTestServer(t, reg)
 	routerP := x.NewRouterPublic()
@@ -364,6 +365,20 @@ func TestStrategy(t *testing.T) {
 		})
 	})
 
+	t.Run("case=login without registered account with return_to", func(t *testing.T) {
+		subject = "login-without-register-return-to@ory.sh"
+		scope = []string{"openid"}
+		returnTo := "/foo"
+
+		t.Run("case=should pass login", func(t *testing.T) {
+			r := newLoginFlow(t, fmt.Sprintf("%s?return_to=%s", returnTS.URL, returnTo), time.Minute)
+			action := afv(t, r.ID, "valid")
+			res, body := makeRequest(t, "valid", action, url.Values{})
+			assert.True(t, strings.HasSuffix(res.Request.URL.String(), returnTo))
+			ai(t, res, body)
+		})
+	})
+
 	t.Run("case=register and register again but login", func(t *testing.T) {
 		subject = "register-twice@ory.sh"
 		scope = []string{"openid"}
@@ -379,6 +394,15 @@ func TestStrategy(t *testing.T) {
 			r := newLoginFlow(t, returnTS.URL, time.Minute)
 			action := afv(t, r.ID, "valid")
 			res, body := makeRequest(t, "valid", action, url.Values{})
+			ai(t, res, body)
+		})
+
+		t.Run("case=should pass third time registration with return to", func(t *testing.T) {
+			returnTo := "/foo"
+			r := newLoginFlow(t, fmt.Sprintf("%s?return_to=%s", returnTS.URL, returnTo), time.Minute)
+			action := afv(t, r.ID, "valid")
+			res, body := makeRequest(t, "valid", action, url.Values{})
+			assert.True(t, strings.HasSuffix(res.Request.URL.String(), returnTo))
 			ai(t, res, body)
 		})
 	})
